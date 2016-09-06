@@ -49,9 +49,6 @@ TARGET_HAS_LEGACY_CAMERA_HAL1 := true
 # Device Tree
 BOARD_USES_DT := true
 
-# ValidityService
-BOARD_USES_VALIDITY := true
-
 # Battery / charging mode
 BOARD_CHARGER_ENABLE_SUSPEND := true
 BOARD_CHARGING_MODE_BOOTING_LPM := /sys/class/power_supply/battery/batt_lp_charging

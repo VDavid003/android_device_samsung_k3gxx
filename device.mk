@@ -213,8 +213,7 @@ PRODUCT_PACKAGES += \
 # Fingerprint
 PRODUCT_PACKAGES += \
     fingerprintd \
-    fingerprint.universal5422 \
-    ValidityService
+    fingerprint.universal5422
 
 # Legacy stagefright media
 PRODUCT_PROPERTY_OVERRIDES += \

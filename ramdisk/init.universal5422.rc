@@ -479,13 +479,6 @@ service fingerprintd /system/bin/fingerprintd
     user system
     group input
 
-# SENSOR FRAMEWORK : starts fingerprintService
-service vcsFPService /system/bin/vcsFPService
-    class late_start
-    user system
-    group system
-
-
 # GPS
 service gpsd /system/bin/gpsd -c /system/etc/gps.xml
     class main

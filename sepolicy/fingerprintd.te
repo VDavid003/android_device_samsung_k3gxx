@@ -1,1 +1,14 @@
-allow fingerprintd system_app:unix_stream_socket { connectto read write setopt };
+allow fingerprintd vcs_data_file:dir create_dir_perms;
+allow fingerprintd vcs_data_file:file create_file_perms;
+
+allow fingerprintd vcs_device:dir create_dir_perms;
+allow fingerprintd vcs_device:file create_file_perms;
+allow fingerprintd vcs_device:fifo_file create_file_perms;
+allow fingerprintd vcs_device:chr_file create_file_perms;
+
+allow fingerprintd tee_device:chr_file rw_file_perms;
+
+# /dev/s5p-smem
+allow fingerprintd secmem_device:chr_file { read write ioctl open };
+
+allow fingerprintd ion_device:chr_file { open read write ioctl };
