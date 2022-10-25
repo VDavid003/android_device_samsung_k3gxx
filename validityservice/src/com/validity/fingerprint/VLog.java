@@ -20,7 +20,7 @@ import android.util.Log;
 
 public class VLog {
     private static final String TAG = "ValidityService";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     public static void i(final String message) {
         Log.i(TAG, message);
