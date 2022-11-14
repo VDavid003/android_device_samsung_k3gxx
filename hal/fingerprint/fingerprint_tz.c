@@ -36,9 +36,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dlfcn.h>
+#include <sys/mman.h>
 
 #include "fingerprint_tz.h"
-#include "fp_klte.h"
+#include "fp_k3gxx.h"
+#include "ion/ion.h"
 
 extern vcs_sensor_t sensor;
 trust_zone_t tz;
@@ -63,42 +65,32 @@ void set_tz_state(worker_state_t state) {
  * cmd: vendorUpdateCalData
  */
 int vcs_update_cal_data() {
-    struct QSEECom_handle *handle = (struct QSEECom_handle *)(tz.qhandle);
-    trust_zone_vendor_cmd_t *send_vendor_cmd = NULL;
-    trust_zone_normal_result_t *resp = NULL;
-    int ret = 0;
-    send_vendor_cmd = (trust_zone_vendor_cmd_t *)handle->ion_sbuffer;
-    resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(trust_zone_vendor_cmd_t)));
-
-    memset(send_vendor_cmd, 0, QSEECOM_ALIGN(sizeof(*send_vendor_cmd)) + QSEECOM_ALIGN(sizeof(*resp)));
-    send_vendor_cmd->cmd = vfmVendorDefinedOperation;
-    send_vendor_cmd->vendor_cmd = vendorUpdateCalData;
-    resp->data[0] = CALIBRATE_DATA_MAX_LENGTH;
-    ret = QSEECom_send_cmd(handle, send_vendor_cmd, QSEECOM_ALIGN(sizeof(*send_vendor_cmd)), resp, QSEECOM_ALIGN(sizeof(*resp)));
-    if (ret || resp->result) {
+    tz.fp_wsm->cmd = vfmVendorDefinedOperation;
+    tz.fp_wsm->vendor_cmd = vendorUpdateCalData;
+    tz.fp_wsm->input.addr = 0;
+    tz.fp_wsm->input.len = 0;
+    tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+    tz.fp_wsm->output.len = CALIBRATE_DATA_MAX_LENGTH;
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmVendorDefinedOperationRsp)) {
         ALOGE("Update Cal Data error");
-        return ret;
+        return -1;
     }
-    tz.calibrate_len = resp->data[3] + 0xf;
-    memcpy(&tz.calibrate_data, &resp->data[2], tz.calibrate_len);
+
+    tz.calibrate_len = ((uint32_t*)tz.g_addrs.output_buf)[1] + 0xf;
+    memcpy(&tz.calibrate_data, tz.g_addrs.output_buf, tz.calibrate_len);
     ALOGV("Sended vendorUpdateCalData");
-    return ret;
+    return 0;
 }
 
 int vcs_check_state() {
-    struct QSEECom_handle *handle = (struct QSEECom_handle *)(tz.qhandle);
-    trust_zone_base_cmd_t *send_cmd = NULL;
-    trust_zone_normal_result_t *resp = NULL;
-    int ret = 0;
-    send_cmd = (trust_zone_base_cmd_t *)handle->ion_sbuffer;
-    resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(int)));
-
     if (get_tz_state() == STATE_IDLE)
         return 1;
     if (get_tz_state() == STATE_CANCEL) {
-        memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(int)) + QSEECOM_ALIGN(sizeof(int)));
-        send_cmd->cmd = vfmCaptureAbort;
-        ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(int)), resp, QSEECOM_ALIGN(sizeof(int)));
+        tz.fp_wsm->cmd = vfmCaptureAbort;
+        mcNotMOD(&tz.ta_session);
+        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
         set_tz_state(STATE_IDLE);
         return 1;
     }
@@ -111,27 +103,23 @@ int vcs_check_state() {
  *      3.vfmCaptureProcessData
  */
 int vcs_start_capture(void *vdev, time_t t) {
-    struct QSEECom_handle *handle = (struct QSEECom_handle *)(tz.qhandle);
-    trust_zone_base_cmd_t *send_cmd = NULL;
-    trust_zone_normal_result_t *resp = NULL;
-    int ret = 0;
-    send_cmd = (trust_zone_base_cmd_t *)handle->ion_sbuffer;
-    resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(trust_zone_base_cmd_t)));
-
-    memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(*send_cmd)) + QSEECOM_ALIGN(sizeof(int)));
-    send_cmd->cmd = vfmCaptureStart;
-    send_cmd->len = 0x1c;
-    send_cmd->data[16] = 0x1;
+    tz.fp_wsm->cmd = vfmCaptureStart;
+    tz.fp_wsm->input.len = 0x1c;
+    tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
+    memset(tz.g_addrs.input_buf, 0, 0x1c);
+    tz.g_addrs.input_buf[16] = 0x1;
     if (t) {
-        *(time_t*)(&send_cmd->data[20]) = t;
+        *(time_t*)(&tz.g_addrs.input_buf[20]) = t;
     }
-    send_cmd->data[24] = 0xc0;
-    send_cmd->data[25] = 0x12;
-    ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(*send_cmd)), resp, QSEECOM_ALIGN(sizeof(int)));
-    if (ret || resp->result) {
+    tz.g_addrs.input_buf[24] = 0xc0;
+    tz.g_addrs.input_buf[25] = 0x12;
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    if ((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmCaptureStartRsp)) {
         ALOGE("Send vfmCaptureStart error");
-        return ret;
+        return -1;
     }
+
     vcs_update_cal_data();
     pthread_mutex_lock(&sensor.lock);
     sensor_capture_start();
@@ -155,39 +143,41 @@ int vcs_start_capture(void *vdev, time_t t) {
         if (vcs_check_state()) {
             return -1;
         }
-        resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(int)));
-        memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(int)) + QSEECOM_ALIGN(sizeof(*resp)));
-        send_cmd->cmd = vfmCaptureReadData;
-        send_cmd->len = 0x8000;
-        resp->data[0] = 0xc;
-        ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(int)), resp, QSEECOM_ALIGN(sizeof(*resp)));
-        if (ret || resp->result) {
+        tz.fp_wsm->cmd = vfmCaptureReadData;
+        tz.fp_wsm->unk_8000 = 0x8000;
+        tz.fp_wsm->output.len = 0xc;
+        tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+        mcNotMOD(&tz.ta_session);
+        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        if ((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmCaptureReadDataRsp)) {
             ALOGE("Send vfmCaptureReadData error");
             continue;
         }
-        if (resp->data[2] == 2) {
+        if (tz.g_addrs.output_buf[0] == 2) {
             ALOGV("User's finger removed from sensor");
             break;
         }
         //usleep(200000);
     }
-    resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(trust_zone_base_cmd_t)));
-    memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(*send_cmd)) + QSEECOM_ALIGN(sizeof(*resp)));
-    send_cmd->cmd = vfmCaptureProcessData;
-    send_cmd->len = 0x1c;
-    send_cmd->data[16] = 0x1;
-    *(time_t*)(&send_cmd->data[20]) = time(NULL);
-    send_cmd->data[24] = 0xc0;
-    send_cmd->data[25] = 0x12;
-    resp->data[0] = 0xc;
-    ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(int)), resp, QSEECOM_ALIGN(sizeof(*resp)));
-    if (ret) {
+    tz.fp_wsm->cmd = vfmCaptureProcessData;
+    tz.fp_wsm->input.len = 0x1c;
+    tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
+    memset(tz.g_addrs.input_buf, 0, 0x1c);
+    tz.g_addrs.input_buf[16] = 0x1;
+    *(time_t*)(&tz.g_addrs.input_buf[20]) = time(NULL);
+    tz.g_addrs.input_buf[24] = 0xc0;
+    tz.g_addrs.input_buf[25] = 0x12;
+    tz.fp_wsm->output.len = 0xc;
+    tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    if (tz.fp_wsm->return_cmd != vfmCaptureProcessDataRsp) {
         ALOGE("Send vfmCaptureProcessData error");
         return -1;
     }
-    if (resp->result != 0) {
-        ALOGE("resp->result=%d",resp->result);
-        send_acquired_notice(vdev, resp->result);
+    if (tz.fp_wsm->return_code != 0) {
+        ALOGE("resp->result=%d",tz.fp_wsm->return_code);
+        send_acquired_notice(vdev, tz.fp_wsm->return_code);
         return vcs_start_capture(vdev, time(NULL));
     }
     return 0;
@@ -201,66 +191,63 @@ int vcs_start_capture(void *vdev, time_t t) {
  */
 
 void* vcs_authenticate(void* vdev) {
-    struct QSEECom_handle *handle = (struct QSEECom_handle *)(tz.qhandle);
-    trust_zone_vendor_cmd_t *send_vendor_cmd = NULL;
-    trust_zone_normal_result_t *resp = NULL;
     int ret = 0;
-    send_vendor_cmd = (trust_zone_vendor_cmd_t *)handle->ion_sbuffer;
-    resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(trust_zone_vendor_cmd_t)));
     int fingerindex = 0;
     int len = 0;
     int fake_fid = 0;
 
-    memset(send_vendor_cmd, 0, QSEECOM_ALIGN(sizeof(*send_vendor_cmd)) + QSEECOM_ALIGN(sizeof(*resp)));
-    send_vendor_cmd->cmd = vfmVendorDefinedOperation;
-    send_vendor_cmd->vendor_cmd = vendorUnknown0;
-    resp->data[0] = 0x4;
-    ret = QSEECom_send_cmd(handle, send_vendor_cmd, QSEECOM_ALIGN(sizeof(*send_vendor_cmd)), resp, QSEECOM_ALIGN(sizeof(*resp)));
-    if (resp->result) {
+    tz.fp_wsm->cmd = vfmVendorDefinedOperation;
+    tz.fp_wsm->vendor_cmd = vendorUnknown0;
+    tz.fp_wsm->input.addr = 0;
+    tz.fp_wsm->input.len = 0;
+    tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+    tz.fp_wsm->output.len = 0x4;
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmVendorDefinedOperationRsp)) {
         ALOGE("%s:Send vendor unknown 0 cmd error", __FUNCTION__);
     }
+
     while (get_tz_state() == STATE_SCAN) {
         ret = vcs_start_capture(vdev, 0);
         if (ret == -1)
             goto out;
-        trust_zone_5x_cmd_t *send_5x_cmd = NULL;
-        trust_zone_2x_result_t *resp_2x = NULL;
-        int idx = 1;
-        send_5x_cmd = (trust_zone_5x_cmd_t *)handle->ion_sbuffer;
-        resp_2x = (trust_zone_2x_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(trust_zone_5x_cmd_t)));
+        tz.fp_wsm->cmd = vfmMatchImageToTemplates;
+        tz.fp_wsm->input.len = 0x14;
+        tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
+        memset(tz.g_addrs.input_buf, 0, 0x14);
+        ((uint32_t*)(tz.g_addrs.input_buf))[0] = 1;
+        ((uint32_t*)(tz.g_addrs.input_buf))[1] = 100000;
+        ((uint32_t*)(tz.g_addrs.input_buf))[2] = time(NULL);
+        ((uint32_t*)(tz.g_addrs.input_buf))[3] = 0x1;
+        tz.fp_wsm->templates_len = vcs_get_enrolled_finger_num();
 
-        memset(send_5x_cmd, 0, QSEECOM_ALIGN(sizeof(*send_5x_cmd)) + QSEECOM_ALIGN(sizeof(*resp_2x)));
-        send_5x_cmd->cmd = vfmMatchImageToTemplates;
-        send_5x_cmd->len = 0x14;
-        send_5x_cmd->unknown[0] = 1;
-        send_5x_cmd->unknown[1] = 100000;
-        send_5x_cmd->time_now = time(NULL);
-        send_5x_cmd->data[0] = 0x1;
-        send_5x_cmd->data[102388] = vcs_get_enrolled_finger_num();
         len = 0;
-        for (idx = 1; idx <= MAX_NUM_FINGERS; idx++)
+        for (int idx = 1; idx <= MAX_NUM_FINGERS; idx++)
             if (tz.finger[idx].exist) {
+                tz.fp_wsm->cmd_custom[len].len = FINGER_DATA_MAX_LENGTH;
+                tz.fp_wsm->cmd_custom[len].addr = tz.g_ext_addrs.input_addr + (len * FINGER_DATA_MAX_LENGTH);
+                memcpy(&tz.g_ext_addrs.input_buf[(len * FINGER_DATA_MAX_LENGTH) / 4], &tz.finger[idx].data, FINGER_DATA_MAX_LENGTH);
                 len++;
-                int address = 102392 + (len - 1) * 15364;
-                send_5x_cmd->data[address] = 0x45;
-                send_5x_cmd->data[address + 1] = 0x28;
-                memcpy(&send_5x_cmd->data[address + 4], &tz.finger[idx].data, FINGER_DATA_MAX_LENGTH);
             }
-        resp_2x->data[0] = 0x5c;
-        resp_2x->data[25602] = 0x3000;
-        ret = QSEECom_send_cmd(handle, send_5x_cmd, QSEECOM_ALIGN(sizeof(*send_5x_cmd)), resp_2x, QSEECOM_ALIGN(sizeof(*resp_2x)));
-        if (ret) {
+        tz.fp_wsm->output.len = 0x5c;
+        tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+        tz.fp_wsm->ext_output.len = 0x3000;
+        tz.fp_wsm->ext_output.addr = tz.g_ext_addrs.output_addr;
+        mcNotMOD(&tz.ta_session);
+        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        if (tz.fp_wsm->return_cmd != vfmMatchImageToTemplatesRsp) {
             ALOGE("%s:send vfmMatchImageToTemplates error", __FUNCTION__);
             send_error_notice(vdev, FINGERPRINT_ERROR_UNABLE_TO_PROCESS);
             goto out;
         }
-        if (resp_2x->result != 0) {
-            send_acquired_notice(vdev, resp_2x->result);
+        if (tz.fp_wsm->return_code != 0) {
+            send_acquired_notice(vdev, tz.fp_wsm->return_code);
             continue;
         }
-        fake_fid = (int)resp_2x->data[22] + 1;
+        fake_fid = (int)tz.g_addrs.input_buf[0];
         len = 0;
-        for (idx = 1; idx <= MAX_NUM_FINGERS; idx++) {
+        for (int idx = 1; idx <= MAX_NUM_FINGERS; idx++) {
             if (tz.finger[idx].exist) {
                 len++;
                 if (len == fake_fid) {
@@ -273,15 +260,14 @@ void* vcs_authenticate(void* vdev) {
         //memcpy(&tz.finger[fingerindex].data, &resp_2x->data[102419], FINGER_DATA_MAX_LENGTH);
         //db_write_to_db(vdev, false, fingerindex);
 
-        trust_zone_2x_cmd_t *send_2x_cmd = NULL;
-        send_2x_cmd = (trust_zone_2x_cmd_t *)handle->ion_sbuffer;
-        resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(trust_zone_2x_cmd_t)));
-        memset(send_2x_cmd, 0, QSEECOM_ALIGN(sizeof(*send_2x_cmd)) + QSEECOM_ALIGN(sizeof(*resp)));
-        send_2x_cmd->cmd = vfmPayloadRelease;
-        send_2x_cmd->len = PAYLOAD_MAX_LENGTH;
-        memcpy(&send_2x_cmd->data, &tz.finger[fingerindex].payload, PAYLOAD_MAX_LENGTH);
-        resp->data[0] = 0x24;
-        ret = QSEECom_send_cmd(handle, send_2x_cmd, QSEECOM_ALIGN(sizeof(*send_2x_cmd)), resp, QSEECOM_ALIGN(sizeof(*resp)));
+        tz.fp_wsm->cmd = vfmPayloadRelease;
+        tz.fp_wsm->input.len = PAYLOAD_MAX_LENGTH;
+        tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
+        memcpy(tz.g_addrs.input_buf, &tz.finger[fingerindex].payload, PAYLOAD_MAX_LENGTH);
+        tz.fp_wsm->output.len = 0x24;
+        tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+        mcNotMOD(&tz.ta_session);
+        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
         break;
     }
 out:
@@ -305,6 +291,9 @@ out:
  */
 
 void* vcs_enroll(void* vdev) {
+    //TODO implement
+    return NULL;
+#if 0
     int count = 8;
     struct QSEECom_handle *handle = (struct QSEECom_handle *)(tz.qhandle);
     trust_zone_base_cmd_t *send_cmd = NULL;
@@ -425,6 +414,7 @@ out:
     sensor_uninit();
     vcs_uninit();
     return NULL;
+#endif
 }
 
 void* vcs_timeout(void* vdev) {
@@ -482,6 +472,9 @@ int vcs_start_authenticate(void *vdev) {
 }
 
 int vcs_start_enroll(void *vdev, uint32_t timeout) {
+    //TODO implement
+    return -1;
+#if 0
     if (get_tz_state() != STATE_IDLE) {
         ALOGE("%s:Sensor is busy!", __FUNCTION__);
         return -1;
@@ -508,6 +501,7 @@ int vcs_start_enroll(void *vdev, uint32_t timeout) {
         }
     }
     return ret;
+#endif
 }
 
 int vcs_get_enrolled_finger_num() {
@@ -524,30 +518,28 @@ int vcs_get_enrolled_finger_num() {
  * cmd: vendorGetAuthToken
  */
 int vcs_update_auth_token() {
-    struct QSEECom_handle *handle = (struct QSEECom_handle *)(tz.qhandle);
-    trust_zone_vendor_cmd_t *send_vendor_cmd = NULL;
-    trust_zone_normal_result_t *resp = NULL;
-    int ret = 0;
-    send_vendor_cmd = (trust_zone_vendor_cmd_t *)handle->ion_sbuffer;
-    resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(trust_zone_vendor_cmd_t)));
-    int i = 0;
-
-    for (i = 0;i < 2; i++) {
-        memset(send_vendor_cmd, 0, QSEECOM_ALIGN(sizeof(*send_vendor_cmd)) + QSEECOM_ALIGN(sizeof(*resp)));
-        send_vendor_cmd->cmd = vfmVendorDefinedOperation;
-        send_vendor_cmd->vendor_cmd = vendorGetAuthToken;
-        if (i == 1) {
-            resp->data[0] = 0x80;
+    //SAMSUNG WEED, I have zero idea how this works
+    //DO NOT UNDER ANY CIRCUMSTANCES TRY TO UNDERSTAND THIS OR TOUCH THIS, IT WORKS SO LEAVE IT ALONE
+    for (int i = 0;i < 2; i++) {
+        tz.fp_wsm->cmd = vfmVendorDefinedOperation;
+        tz.fp_wsm->vendor_cmd = vendorGetAuthToken;
+        tz.fp_wsm->output.len = 0x9c;
+        if (i == 0)
+          tz.fp_wsm->output.len = 0xa0;
+        tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+        mcNotMOD(&tz.ta_session);
+        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        if (tz.fp_wsm->output.len == 0x9c) {
+            break;
         }
-        ret = QSEECom_send_cmd(handle, send_vendor_cmd, QSEECOM_ALIGN(sizeof(*send_vendor_cmd)), resp, QSEECOM_ALIGN(sizeof(*resp)));
     }
-    if (resp->result) {
-        ALOGE("send vendorGetAuthToken failed, qsapp result=%d", resp->result);
-        return resp->result;
+    if ((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmVendorDefinedOperationRsp)) {
+        ALOGE("send vendorGetAuthToken failed, TA result=%d", tz.fp_wsm->return_code);
+        return -1;
     }
-    memcpy(&tz.auth_token, &resp->data[2], AUTH_TOKEN_LENGTH);
+    memcpy(&tz.auth_token, tz.g_addrs.output_buf, AUTH_TOKEN_LENGTH);
     ALOGV("Sended vendorGetAuthToken");
-    return ret;
+    return 0;
 }
 
 /*
@@ -555,28 +547,19 @@ int vcs_update_auth_token() {
  */
 
 int vcs_start_auth_session() {
-    struct QSEECom_handle *handle = (struct QSEECom_handle *)(tz.qhandle);
-    trust_zone_base_cmd_t *send_cmd = NULL;
-    trust_zone_vendor_cmd_t *send_vendor_cmd = NULL;
-    trust_zone_normal_result_t *resp = NULL;
-    int ret = 0;
-    send_cmd = (trust_zone_base_cmd_t *)handle->ion_sbuffer;
-    send_vendor_cmd = (trust_zone_vendor_cmd_t *)handle->ion_sbuffer;
-    int i = 0;
-
-    resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(int)));
-    memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(int)) + QSEECOM_ALIGN(sizeof(*resp)));
-    send_cmd->cmd = vfmAuthSessionBegin;
-    resp->data[0] = AUTH_SESSION_TOKEN_LENGTH;
-    ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(int)), resp, QSEECOM_ALIGN(sizeof(*resp)));
-    if (ret || resp->result) {
-        ALOGE("send vfmAuthSessionBegin failed, qsapp result=%d", resp->result);
-        return ret;
+    tz.fp_wsm->cmd = vfmAuthSessionBegin;
+    tz.fp_wsm->output.len = 0x20;
+    tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmAuthSessionBeginRsp)) {
+        ALOGE("send vfmAuthSessionBegin failed, TA result=%d", tz.fp_wsm->return_code);
+        return -1;
     }
-    memcpy(&tz.auth_session_token, &resp->data[2], AUTH_SESSION_TOKEN_LENGTH);
+    memcpy(&tz.auth_session_token, tz.g_addrs.output_buf, AUTH_SESSION_TOKEN_LENGTH);
     tz.auth_session_opend = true;
     ALOGV("Sended vfmAuthSessionBegin");
-    return ret;
+    return 0;
 }
 
 /*
@@ -584,23 +567,16 @@ int vcs_start_auth_session() {
  */
 
 int vcs_stop_auth_session() {
-    struct QSEECom_handle *handle = (struct QSEECom_handle *)(tz.qhandle);
-    trust_zone_base_cmd_t *send_cmd = NULL;
-    trust_zone_normal_result_t *resp = NULL;
-    int ret = 0;
-    send_cmd = (trust_zone_base_cmd_t *)handle->ion_sbuffer;
-    resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(int)));
-
-    memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(int)) + QSEECOM_ALIGN(sizeof(int)));
-    send_cmd->cmd = vfmAuthSessionEnd;
-    ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(int)), resp, QSEECOM_ALIGN(sizeof(int)));
-    if (ret || resp->result) {
-        ALOGE("send vfmAuthSessionEnd failed, qsapp result=%d", resp->result);
+    tz.fp_wsm->cmd = vfmAuthSessionEnd;
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmAuthSessionEndRsp)) {
+        ALOGE("send vfmAuthSessionEnd failed, TA result=%d", tz.fp_wsm->return_code);
     }
     memset(tz.auth_session_token, 0, AUTH_SESSION_TOKEN_LENGTH);
     tz.auth_session_opend = false;
     ALOGV("Sended vfmAuthSessionEnd");
-    return ret;
+    return 0;
 }
 
 /*
@@ -611,71 +587,70 @@ int vcs_stop_auth_session() {
  */
 
 int vcs_resume() {
-    struct QSEECom_handle *handle = (struct QSEECom_handle *)(tz.qhandle);
-    trust_zone_base_cmd_t *send_cmd = NULL;
-    trust_zone_normal_result_t *resp = NULL;
-    int ret = 0;
-    send_cmd = (trust_zone_base_cmd_t *)handle->ion_sbuffer;
-    resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(trust_zone_base_cmd_t)));
-
-    memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(*send_cmd)) + QSEECOM_ALIGN(sizeof(int)));
-    send_cmd->cmd = vfmInitialize;
-    send_cmd->len = 4;
-    send_cmd->data[0] = 2;
-    ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(*send_cmd)), resp, QSEECOM_ALIGN(sizeof(int)));
-    if (ret || resp->result) {
-        ALOGE("send vfmInitialize failed, qsapp result=%d", resp->result);
-        return ret;
+    tz.fp_wsm->cmd = vfmInitialize;
+    tz.fp_wsm->input.len = 4;
+    tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
+    memset(tz.g_addrs.input_buf, 0, 4);
+    //qcom sets something to 2 here, we don't seem to do it
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmInitializeRsp)) {
+        ALOGE("send vfmInitialize failed, TA result=%d", tz.fp_wsm->return_code);
+        return -1;
     }
     ALOGV("Sended vfmInitialize");
 
     if (tz.auth_session_opend) {
-        trust_zone_vendor_cmd_t *send_vendor_cmd = NULL;
-        send_vendor_cmd = (trust_zone_vendor_cmd_t *)handle->ion_sbuffer;
-        memset(send_vendor_cmd, 0, QSEECOM_ALIGN(sizeof(*send_vendor_cmd)) + QSEECOM_ALIGN(sizeof(*resp)));
-        send_vendor_cmd->cmd = vfmVendorDefinedOperation;
-        send_vendor_cmd->vendor_cmd = vendorEnterAuthSession;
-        send_vendor_cmd->len = 0x70;
-        memcpy(&send_vendor_cmd->data, &tz.auth_token, 0x70);
-        ret = QSEECom_send_cmd(handle, send_vendor_cmd, QSEECOM_ALIGN(sizeof(*send_vendor_cmd)), resp, QSEECOM_ALIGN(sizeof(*resp)));
-        if (ret || resp->result) {
-            ALOGE("send EnterAuthSession failed, qsapp result=%d", resp->result);
-            return resp->result;
+        tz.fp_wsm->cmd = vfmVendorDefinedOperation;
+        tz.fp_wsm->vendor_cmd = vendorEnterAuthSession;
+        tz.fp_wsm->input.len = 0x9c;
+        tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
+        memcpy(tz.g_addrs.input_buf, &tz.auth_token, 0x9c);
+        mcNotMOD(&tz.ta_session);
+        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmVendorDefinedOperationRsp)) {
+            ALOGE("send EnterAuthSession failed, TA result=%d", tz.fp_wsm->return_code);
+            return -1;
         }
     }
     ALOGV("Sended EnterAuthSession");
 
-    memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(*send_cmd)) + QSEECOM_ALIGN(sizeof(int)));
-    send_cmd->cmd = vfmDeviceInitialize;
-    ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(*send_cmd)), resp, QSEECOM_ALIGN(sizeof(int)));
-    if (ret || resp->result) {
-        ALOGE("send vfmDeviceInitialize failed, qsapp result=%d", resp->result);
-        return ret;
+    tz.fp_wsm->cmd = vfmDeviceInitialize;
+    tz.fp_wsm->input.len = 0;
+    tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmDeviceInitializeRsp)) {
+        ALOGE("send vfmDeviceInitialize failed, TA result=%d", tz.fp_wsm->return_code);
+        return -1;
     }
     ALOGV("Sended vfmDeviceInitialize");
 
-    memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(*send_cmd)) + QSEECOM_ALIGN(sizeof(*resp)));
-    send_cmd->cmd = vfmDeviceCalibrate;
-    send_cmd->data[0] = 0xc0;
-    send_cmd->data[1] = 0x12;
-    resp->data[0] = CALIBRATE_DATA_MAX_LENGTH;
+    tz.fp_wsm->cmd = vfmDeviceCalibrate;
+    tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
+    tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+    memset(tz.g_addrs.input_buf, 0, 0x10);
+    tz.g_addrs.input_buf[0] = 0xc0;
+    tz.g_addrs.input_buf[1] = 0x12;
+    tz.fp_wsm->output.len = CALIBRATE_DATA_MAX_LENGTH;
     if (tz.calibrate_len) {
-        send_cmd->len = tz.calibrate_len;
-        memcpy(&send_cmd->data[4], &tz.calibrate_data, tz.calibrate_len);
+        tz.fp_wsm->input.len = tz.calibrate_len;
+        memcpy(&tz.g_addrs.input_buf[4], &tz.calibrate_data, tz.calibrate_len);
     } else {
-        send_cmd->len = 0x10;
+        tz.fp_wsm->input.len = 0x10;
     }
-    ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(*send_cmd)), resp, QSEECOM_ALIGN(sizeof(*resp)));
-    if (ret || resp->result) {
-        ALOGE("send vfmDeviceCalibrate failed, qsapp result=%d", resp->result);
-        return ret;
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmDeviceCalibrateRsp)) {
+        ALOGE("send vfmDeviceCalibrate failed, TA result=%d", tz.fp_wsm->return_code);
+        return -1;
     }
     if (tz.calibrate_len == 0) {
-        tz.calibrate_len = resp->data[3] + 0xf;
-        memcpy(&tz.calibrate_data, &resp->data[2], tz.calibrate_len);
+        tz.calibrate_len = ((uint32_t*)tz.g_addrs.output_buf)[1] + 0xf;
+        memcpy(&tz.calibrate_data, tz.g_addrs.output_buf, tz.calibrate_len);
     }
     ALOGV("Sended vfmDeviceCalibrate");
-    return ret;
+    return 0;
 }
 
 /*
@@ -684,24 +659,43 @@ int vcs_resume() {
  */
 
 int vcs_uninit() {
-    struct QSEECom_handle *handle = (struct QSEECom_handle *)(tz.qhandle);
-    trust_zone_base_cmd_t *send_cmd = NULL;
-    trust_zone_normal_result_t *resp = NULL;
-    send_cmd = (trust_zone_base_cmd_t *)handle->ion_sbuffer;
-    resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(trust_zone_base_cmd_t)));
-
     if (tz.auth_session_opend) {
         vcs_update_auth_token();
     }
 
-    memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(int)) + QSEECOM_ALIGN(sizeof(int)));
-    send_cmd->cmd = vfmUninitialize;
-    QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(int)), resp, QSEECOM_ALIGN(sizeof(int)));
-    QSEECom_set_bandwidth(handle, false);
-    QSEECom_shutdown_app((struct QSEECom_handle **)&tz.qhandle);
+    tz.fp_wsm->cmd = vfmUninitialize;
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+
+    mcUnMOD(&tz.ta_session, tz.g_addrs.input_buf, &tz.g_addrs.input_map);
+    tz.g_addrs.input_len = 0;
+    tz.g_addrs.input_addr = 0;
+    free(tz.g_addrs.input_buf);
+
+    mcUnMOD(&tz.ta_session, tz.g_addrs.output_buf, &tz.g_addrs.output_map);
+    tz.g_addrs.output_len = 0;
+    tz.g_addrs.output_addr = 0;
+    free(tz.g_addrs.output_buf);
+
+    mcUnMOD(&tz.ta_session, tz.g_ext_addrs.input_buf, &tz.g_ext_addrs.input_map);
+    tz.g_ext_addrs.input_len = 0;
+    tz.g_ext_addrs.input_addr = 0;
+    free(tz.g_ext_addrs.input_buf);
+
+    mcUnMOD(&tz.ta_session, tz.g_ext_addrs.output_buf, &tz.g_ext_addrs.output_map);
+    tz.g_ext_addrs.output_len = 0;
+    tz.g_ext_addrs.output_addr = 0;
+    free(tz.g_ext_addrs.output_buf);
+
+    mcCloseSessMOD(&tz.dr_session);
+    mcCloseSessMOD(&tz.ta_session);
+    mcFreeMOD(MC_DEVICE_ID_DEFAULT, tz.drv_wsm);
+    mcFreeMOD(MC_DEVICE_ID_DEFAULT, (uint8_t*)tz.fp_wsm);
+    mcCloseDevMOD(MC_DEVICE_ID_DEFAULT);
+
     tz.init = false;
     set_tz_state(STATE_IDLE);
-    ALOGV("Closed securefp qsapp");
+    ALOGV("Closed securefp TA");
     return 0;
 }
 
@@ -710,26 +704,93 @@ int vcs_uninit() {
  * Call vcs_resume
  */
 
+mcUuid_t dr_uuid = {
+    0xff, 0xff, 0xff, 0xff, 0xd0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e };
+
+mcUuid_t ta_uuid = {
+    0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e };
+
+
 int vcs_init() {
     int ret = 0;
     if (tz.init) {
-        ALOGI("securefp qsapp is already running!");
+        ALOGI("securefp TA is already running!");
         return ret;
     }
-    ret = QSEECom_start_app((struct QSEECom_handle **)&tz.qhandle,
-                        "/firmware/image", "securefp", SB_LENGTH);
-    if (ret) {
+
+    if (mcOpenDevMOD(MC_DEVICE_ID_DEFAULT) != MC_DRV_OK) {
+        ALOGE("Opening MobiCore device failed");
+        return -1;
+    }
+
+    if (mcMallocMOD(MC_DEVICE_ID_DEFAULT, 0, 300, &tz.drv_wsm, 0) != MC_DRV_OK) {
+        ALOGE("Allocating secure driver WSM failed");
+        return -1;
+    }
+
+    if (mcMallocMOD(MC_DEVICE_ID_DEFAULT, 0, 300, (uint8_t**)&tz.fp_wsm, 0) != MC_DRV_OK) {
+        ALOGE("Allocating TA WSM failed");
+        return -1;
+    }
+
+    if (mcOpenSessMOD(&tz.dr_session, &dr_uuid, tz.drv_wsm, 300) != MC_DRV_OK) {
+        ALOGE("Loading secure driver failed");
+        return -1;
+    }
+
+    if (mcOpenSessMOD(&tz.ta_session, &ta_uuid, (uint8_t*)tz.fp_wsm, 300) != MC_DRV_OK) {
         ALOGE("Loading securefp app failed");
         return -1;
     }
-    struct QSEECom_handle *handle = (struct QSEECom_handle *)(tz.qhandle);
-    ret = QSEECom_set_bandwidth(handle, true);
-    if (ret) {
-        ALOGE("Set bandwidth failed");
+
+    tz.g_addrs.input_len = 0x25800;
+    tz.g_addrs.input_buf = malloc(0x25800);
+    if (mcMOD(&tz.ta_session, tz.g_addrs.input_buf, tz.g_addrs.input_len, &tz.g_addrs.input_map) != MC_DRV_OK) {
+        ALOGE("Mapping input buffer failed");
         return -1;
     }
+    tz.g_addrs.input_addr = (uint32_t)tz.g_addrs.input_map.sVirtualAddr;
+
+    tz.g_addrs.output_len = 0x25800;
+    tz.g_addrs.output_buf = malloc(0x25800);
+    if (mcMOD(&tz.ta_session, tz.g_addrs.output_buf, tz.g_addrs.output_len, &tz.g_addrs.output_map) != MC_DRV_OK) {
+        ALOGE("Mapping output buffer failed");
+        return -1;
+    }
+    tz.g_addrs.output_addr = (uint32_t)tz.g_addrs.output_map.sVirtualAddr;
+
+    tz.g_ext_addrs.input_len = 0x96000;
+    tz.g_ext_addrs.input_buf = malloc(0x96000);
+    if (mcMOD(&tz.ta_session, tz.g_ext_addrs.input_buf, tz.g_ext_addrs.input_len, &tz.g_ext_addrs.input_map) != MC_DRV_OK) {
+        ALOGE("Mapping special input buffer failed");
+        return -1;
+    }
+    tz.g_ext_addrs.input_addr = (uint32_t)tz.g_ext_addrs.input_map.sVirtualAddr;
+
+    tz.g_ext_addrs.output_len = 0x25800;
+    tz.g_ext_addrs.output_buf = malloc(0x25800);
+    if (mcMOD(&tz.ta_session, tz.g_ext_addrs.output_buf, tz.g_ext_addrs.output_len, &tz.g_ext_addrs.output_map) != MC_DRV_OK) {
+        ALOGE("Mapping special output buffer failed");
+        return -1;
+    }
+    tz.g_ext_addrs.output_addr = (uint32_t)tz.g_ext_addrs.output_map.sVirtualAddr;
+
+    tz.fd_crypt_mem = open("/dev/s5p-smem", O_RDWR);
+    tz.fd_ion = open("/dev/ion", O_RDWR);
+
+    ion_alloc_fd(tz.fd_ion, 0x20000, 0, 0x10, 0x80000, &tz.secfd_info.fd_ion_handle);
+    tz.ion_buf = mmap(0, 0x20000, 3, 1, tz.secfd_info.fd_ion_handle, 0);
+
+    //ioctl get phy address magic
+    ioctl(tz.fd_crypt_mem, 0xc0085308, &tz.secfd_info);
+    tz.fp_wsm->ion_phys_addr = tz.secfd_info.ion_phys_addr;
+    memset(tz.ion_buf, 0, 0x20000);
+
     tz.init = true;
-    ALOGV("securefp qsapp init success!");
+
+    ALOGV("securefp TA init success!");
     ret = vcs_resume();
     return ret;
 }

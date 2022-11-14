@@ -19,9 +19,10 @@
 #define __FINGERPRINT_TZ_H_
 
 #include "fingerprint_common.h"
-#include "QSEEComAPI.h"
+#include "MobiCoreDriverApi.h"
+#include "libMcFpLog.h"
 
-/* QSEE cmd */
+/* CMD */
 typedef enum trust_zone_cmd_id_t {
     vfmProvision = 0x1,
     vfmInitialize = 0x2,
@@ -35,7 +36,7 @@ typedef enum trust_zone_cmd_id_t {
     vfmCaptureProcessData = 0xa,
     vfmCaptureAbort = 0xb,
     vfmCaptureGetStatus = 0xc,
-    /* QSEE cmd id 0xd is unused. */
+    /* CMD id 0xd is unused. */
     vfmCaptureFlushImage = 0xe,
     vfmEnrollBegin = 0xf,
     vfmEnrollAddImage = 0x10,
@@ -45,7 +46,34 @@ typedef enum trust_zone_cmd_id_t {
     vfmMatchImageToTemplates = 0x14,
     vfmPayloadBind = 0x15,
     vfmPayloadRelease = 0x16,
-    vfmVendorDefinedOperation = 0x17
+    vfmVendorDefinedOperation = 0x17,
+    vfmGetSpiMode = 0x18,
+
+    /* Response versions have the most significant bit set */
+    vfmProvisionRsp = 0x80000001,
+    vfmInitializeRsp = 0x80000002,
+    vfmUninitializeRsp = 0x80000003,
+    vfmDeviceInitializeRsp = 0x80000004,
+    vfmDeviceCalibrateRsp = 0x80000005,
+    vfmAuthSessionBeginRsp = 0x80000006,
+    vfmAuthSessionEndRsp = 0x80000007,
+    vfmCaptureStartRsp = 0x80000008,
+    vfmCaptureReadDataRsp = 0x80000009,
+    vfmCaptureProcessDataRsp = 0x8000000a,
+    vfmCaptureAbortRsp = 0x8000000b,
+    vfmCaptureGetStatusRsp = 0x8000000c,
+    /* CMD id 0xd is unused. */
+    vfmCaptureFlushImageRsp = 0x8000000e,
+    vfmEnrollBeginRsp = 0x8000000f,
+    vfmEnrollAddImageRsp = 0x80000010,
+    vfmEnrollFinishRsp = 0x80000011,
+    vfmEnrollmentPasswordSetRsp = 0x80000012,
+    vfmEnrollmentPasswordVerifyRsp = 0x80000013,
+    vfmMatchImageToTemplatesRsp = 0x80000014,
+    vfmPayloadBindRsp = 0x80000015,
+    vfmPayloadReleaseRsp = 0x80000016,
+    vfmVendorDefinedOperationRsp = 0x80000017,
+    vfmGetSpiModeRsp = 0x80000018
 }trust_zone_cmd_id_t;
 
 typedef enum trust_zone_vendor_cmd_id_t {
@@ -57,55 +85,68 @@ typedef enum trust_zone_vendor_cmd_id_t {
     vendorUpdateCalData = 0x17
 }trust_zone_vendor_cmd_id_t;
 
-typedef struct trust_zone_normal_cmd_t {
-    trust_zone_cmd_id_t cmd;
-    int len;
-    int zero;
-    char data[BUFFER_LENGTH - 12];
-}trust_zone_base_cmd_t;
+typedef struct {
+    uint32_t len;
+    uint32_t addr;
+} ioData;
 
-typedef struct trust_zone_vendor_cmd_t {
+typedef struct {
     trust_zone_cmd_id_t cmd;
+    uint32_t unk_8000;
+    uint32_t unknown1;
+    uint32_t templates_len;
+    uint32_t unknown2;
     trust_zone_vendor_cmd_id_t vendor_cmd;
-    int len;
-    int zero;
-    char data[BUFFER_LENGTH - 16];
-}trust_zone_vendor_cmd_t;
+    ioData input;
+    ioData cmd_custom[30];
+    uint32_t ion_phys_addr;
+    trust_zone_cmd_id_t return_cmd;
+    uint32_t return_code;
+    ioData output;
+    ioData ext_output;
+} tciMessageS5;
 
-typedef struct trust_zone_2x_cmd_t {
-    trust_zone_cmd_id_t cmd;
-    int len;
-    int zero;
-    char data[BUFFER_LENGTH * 2 - 12];
-}trust_zone_2x_cmd_t;
+typedef struct {
+    uint8_t* input_buf;
+    uint32_t input_addr;
+    uint32_t input_len;
+    mcBulkMap_t input_map;
+    uint8_t* output_buf;
+    uint32_t output_addr;
+    uint32_t output_len;
+    mcBulkMap_t output_map;
+} g_addrs_struct;
 
-typedef struct trust_zone_3x_cmd_t {
-    trust_zone_cmd_id_t cmd;
-    int len;
-    int zero;
-    char data[BUFFER_LENGTH * 3 - 12];
-}trust_zone_3x_cmd_t;
+//for ioctl
+typedef struct secfd_info_t {
+     int fd_ion_handle;
+     uint32_t ion_phys_addr;
+} secfd_info_t;
 
-typedef struct trust_zone_5x_cmd_t { //only use on vfmMatchImageToTemplates
-    trust_zone_cmd_id_t cmd;
-    int len;
-    int zero;
-    int unknown[2];
-    time_t time_now;
-    char data[563304];
-}trust_zone_5x_cmd_t;
-
-typedef struct trust_zone_normal_result_t {
-    int zero;
-    int result;
-    int data[BUFFER_LENGTH/4 - 2];
-}trust_zone_normal_result_t;
-
-typedef struct trust_zone_2x_result_t {
-    int zero;
-    int result;
-    int data[(BUFFER_LENGTH * 2)/4 - 2];
-}trust_zone_2x_result_t;
+typedef struct trust_zone_t {
+    bool init;
+    worker_state_t state;
+    g_addrs_struct g_addrs;
+    g_addrs_struct g_ext_addrs;
+    uint8_t* drv_wsm;
+    tciMessageS5* fp_wsm;
+    mcSessionHandle_t dr_session;
+    mcSessionHandle_t ta_session;
+    bool auth_session_opend;
+    char auth_token[AUTH_TOKEN_LENGTH];
+    char auth_session_token[AUTH_SESSION_TOKEN_LENGTH];
+    int calibrate_len;
+    char calibrate_data[CALIBRATE_DATA_MAX_LENGTH];
+    finger_t finger[MAX_NUM_FINGERS + 1]; // Start from finger[1]
+    timeout_t timeout;
+    pthread_t auth_thread;
+    pthread_t enroll_thread;
+    pthread_mutex_t lock;
+    int fd_crypt_mem;
+    int fd_ion;
+    secfd_info_t secfd_info;
+    uint8_t* ion_buf;
+}trust_zone_t;
 
 #define FINGERPRINT_ERROR_HW_UNAVAILABLE (1)
 #define FINGERPRINT_ERROR_UNABLE_TO_PROCESS (2)

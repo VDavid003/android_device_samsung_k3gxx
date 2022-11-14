@@ -23,10 +23,10 @@
 
 #define SB_LENGTH (0x100000)
 #define BUFFER_LENGTH (0x19000)
-#define AUTH_TOKEN_LENGTH (0x70)
+#define AUTH_TOKEN_LENGTH (0x9c)
 #define AUTH_SESSION_TOKEN_LENGTH (0x20)
 #define CALIBRATE_DATA_MAX_LENGTH (0x500c)
-#define FINGER_DATA_MAX_LENGTH (0x2900)
+#define FINGER_DATA_MAX_LENGTH (0x2871)
 #define PAYLOAD_MAX_LENGTH (0x24)
 #define MAX_NUM_FINGERS (5)
 
@@ -57,21 +57,5 @@ typedef struct timeout_t {
     pthread_cond_t cond;
     pthread_mutex_t lock;
 }timeout_t;
-
-typedef struct trust_zone_t {
-    bool init;
-    worker_state_t state;
-    struct QSEECom_handle *qhandle;
-    bool auth_session_opend;
-    char auth_token[AUTH_TOKEN_LENGTH];
-    char auth_session_token[AUTH_SESSION_TOKEN_LENGTH];
-    int calibrate_len;
-    char calibrate_data[CALIBRATE_DATA_MAX_LENGTH];
-    finger_t finger[MAX_NUM_FINGERS + 1]; // Start from finger[1]
-    timeout_t timeout;
-    pthread_t auth_thread;
-    pthread_t enroll_thread;
-    pthread_mutex_t lock;
-}trust_zone_t;
 
 #endif //__FINGERPRINT_COMMON_H_

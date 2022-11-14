@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "FingerprintHal_msm8974"
+#define LOG_TAG "FingerprintHal_universal5422"
 #define LOG_NDEBUG 1
 
 #include <errno.h>
@@ -35,7 +35,7 @@
 #include <hardware/hardware.h>
 #include <hardware/fingerprint.h>
 
-#include "fp_klte.h"
+#include "fp_k3gxx.h"
 #include "fingerprint_tz.h"
 #include "hash.h"
 
@@ -741,7 +741,7 @@ fingerprint_module_t HAL_MODULE_INFO_SYM = {
         .module_api_version = FINGERPRINT_MODULE_API_VERSION_2_0,
         .hal_api_version    = HARDWARE_HAL_API_VERSION,
         .id                 = FINGERPRINT_HARDWARE_MODULE_ID,
-        .name               = "KLTE Fingerprint HAL",
+        .name               = "K3GXX Fingerprint HAL",
         .author             = "ljzyal(ljzyal@gmail.com)",
         .methods            = &fingerprint_module_methods,
     },
