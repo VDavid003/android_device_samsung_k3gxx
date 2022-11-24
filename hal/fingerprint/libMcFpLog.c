@@ -48,16 +48,26 @@ void* ext_output_buf;
 static void hex_dump(uint8_t* buf, uint32_t len) {
 	if (len == 0)
 		return;
-	char* str = malloc(len * 2 + 1); //two letters for each byte and zero byte end
-	char onehex[3] = "";
-	str[0] = '\0';
+	__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "HEX DUMP:");
 
-	for(int i=0; i < len; i++) {
-		snprintf(onehex, 3, "%02x", buf[i]);
-		strcat(str, onehex);
+	int remaining = len;
+	for (int i = 0; i < (len / 256) + 1; i++) {
+		if (remaining == 0)
+			break;
+
+		int toPrint = (remaining < 256) ? remaining : 256;
+		char* str = malloc(toPrint * 2 + 1); //two letters for each byte and zero byte end
+		char onehex[3] = "";
+		str[0] = '\0';
+
+		for(int j=0; j < toPrint; j++) {
+			snprintf(onehex, 3, "%02x", buf[(len - remaining) + j]);
+			strcat(str, onehex);
+		}
+		__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "%s", str);
+		remaining -= toPrint;
+		free(str);
 	}
-	__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "HEX DUMP: %s", str);
-	free(str);
 }
 
 static void try_decode_send(tciMessageS5* tci) {
@@ -102,8 +112,12 @@ static void try_decode_send(tciMessageS5* tci) {
 		case vfmMatchImageToTemplates:
 			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "MATCH_IMAGE_TO_TEMPLATES (decode wen)");
 			hex_dump((uint8_t*)input_buf + (tci->input.addr - input_addr), tci->input.len);
-			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "extra input:");
-			hex_dump((uint8_t*)ext_input_buf, 0x500);//ext_input_len);
+			for(int i=0; i < 30; i++) {
+				if ((tci->cmd_custom[i].len == 0) || (tci->cmd_custom[i].addr == 0))
+					break;
+				__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "input template %d:", i);
+				hex_dump((uint8_t*)ext_input_buf + tci->cmd_custom[i].addr - ext_input_addr, tci->cmd_custom[i].len);//ext_input_len);
+			}
 			break;
 		case vfmPayloadRelease:
 			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "PAYLOAD_RELEASE (decode wen)");
