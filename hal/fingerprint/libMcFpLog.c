@@ -132,6 +132,23 @@ static void try_decode_send(tciMessageS5* tci) {
 		case vfmGetSpiMode:
 			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "GET MODE");
 			break;
+		//Enrollment cases
+		case vfmEnrollAddImage:
+			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "ENROLL_ADD_IMAGE (decode wen)");
+			hex_dump((uint8_t*)input_buf + (tci->input.addr - input_addr), tci->input.len);
+			break;
+		case vfmEnrollBegin:
+			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "ENROLL_BEGIN (decode wen)");
+			hex_dump((uint8_t*)input_buf + (tci->input.addr - input_addr), tci->input.len);
+			break;	
+		case vfmEnrollFinish:
+			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "ENROLL_FINISH (decode wen)");
+			hex_dump((uint8_t*)input_buf + (tci->input.addr - input_addr), tci->input.len);
+			break;
+		case vfmPayloadBind:
+			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "PAYLOAD_BIND (decode wen)");
+			hex_dump((uint8_t*)input_buf + (tci->input.addr - input_addr), tci->input.len);
+			break;									
 		default:
 			break;
 	}
@@ -194,6 +211,23 @@ static void try_decode_reply(tciMessageS5* tci) {
 		case vfmGetSpiModeRsp:
 			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "GET MODE RESPONSE: %02x", buf8[0]);
 			break;
+		//Enrollment cases
+		case vfmEnrollAddImageRsp:
+			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "ENROLL_ADD_IMAGE (decode wen)");
+			hex_dump((uint8_t*)input_buf + (tci->output.addr - output_addr), tci->output.len);
+			break;
+		case vfmEnrollBeginRsp:
+			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "ENROLL_BEGIN (decode wen)");
+			hex_dump((uint8_t*)input_buf + (tci->output.addr - output_addr), tci->output.len);
+			break;	
+		case vfmEnrollFinishRsp:
+			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "ENROLL_FINISH (decode wen)");
+			hex_dump((uint8_t*)input_buf + (tci->output.addr - output_addr), tci->output.len);
+			break;
+		case vfmPayloadBindRsp:
+			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "PAYLOAD_BIND (decode wen)");
+			hex_dump((uint8_t*)input_buf + (tci->output.addr - output_addr), tci->output.len);
+			break;				
 		default:
 			break;
 	}
