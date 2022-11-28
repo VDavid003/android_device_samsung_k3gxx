@@ -214,19 +214,19 @@ static void try_decode_reply(tciMessageS5* tci) {
 		//Enrollment cases
 		case vfmEnrollAddImageRsp:
 			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "ENROLL_ADD_IMAGE (decode wen)");
-			hex_dump((uint8_t*)input_buf + (tci->output.addr - output_addr), tci->output.len);
+			hex_dump((uint8_t*)output_buf + (tci->output.addr - output_addr), tci->output.len);
 			break;
 		case vfmEnrollBeginRsp:
 			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "ENROLL_BEGIN (decode wen)");
-			hex_dump((uint8_t*)input_buf + (tci->output.addr - output_addr), tci->output.len);
+			hex_dump((uint8_t*)output_buf + (tci->output.addr - output_addr), tci->output.len);
 			break;	
 		case vfmEnrollFinishRsp:
 			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "ENROLL_FINISH (decode wen)");
-			hex_dump((uint8_t*)input_buf + (tci->output.addr - output_addr), tci->output.len);
+			hex_dump((uint8_t*)output_buf + (tci->output.addr - output_addr), tci->output.len);
 			break;
 		case vfmPayloadBindRsp:
 			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "PAYLOAD_BIND (decode wen)");
-			hex_dump((uint8_t*)input_buf + (tci->output.addr - output_addr), tci->output.len);
+			hex_dump((uint8_t*)output_buf + (tci->output.addr - output_addr), tci->output.len);
 			break;				
 		default:
 			break;
