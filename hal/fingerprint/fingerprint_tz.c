@@ -227,7 +227,7 @@ void* vcs_authenticate(void* vdev) {
             if (tz.finger[idx].exist) {
                 tz.fp_wsm->cmd_custom[len].len = FINGER_DATA_MAX_LENGTH;
                 tz.fp_wsm->cmd_custom[len].addr = tz.g_ext_addrs.input_addr + (len * FINGER_DATA_MAX_LENGTH);
-                memcpy(&tz.g_ext_addrs.input_buf[(len * FINGER_DATA_MAX_LENGTH) / 4], &tz.finger[idx].data, FINGER_DATA_MAX_LENGTH);
+                memcpy(&tz.g_ext_addrs.input_buf[(len * FINGER_DATA_MAX_LENGTH)], &tz.finger[idx].data, FINGER_DATA_MAX_LENGTH);
                 len++;
             }
         tz.fp_wsm->output.len = 0x5c;
