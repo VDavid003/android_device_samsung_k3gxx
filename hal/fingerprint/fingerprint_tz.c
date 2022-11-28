@@ -291,19 +291,9 @@ out:
  */
 
 void* vcs_enroll(void* vdev) {
-    //TODO implement
-    return NULL;
-#if 0
     int count = 8;
-    struct QSEECom_handle *handle = (struct QSEECom_handle *)(tz.qhandle);
-    trust_zone_base_cmd_t *send_cmd = NULL;
-    trust_zone_vendor_cmd_t *send_vendor_cmd = NULL;
-    trust_zone_normal_result_t *resp = NULL;
     int ret = 0;
     int i = 0;
-    send_cmd = (trust_zone_base_cmd_t *)handle->ion_sbuffer;
-    send_vendor_cmd = (trust_zone_vendor_cmd_t *)handle->ion_sbuffer;
-    resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(trust_zone_base_cmd_t)));
 
     int idx = 1;
     for (idx = 1; idx <= MAX_NUM_FINGERS; idx++) {
@@ -312,22 +302,27 @@ void* vcs_enroll(void* vdev) {
         }
     }
 
-    memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(*send_cmd)) + QSEECOM_ALIGN(sizeof(int)));
-    send_cmd->cmd = vfmEnrollBegin;
-    send_cmd->data[102400] = idx;
-    ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(*send_cmd)), resp, QSEECOM_ALIGN(sizeof(int)));
-    if (ret || resp->result) {
+    tz.fp_wsm->cmd = vfmEnrollBegin;
+    tz.fp_wsm->enroll_fp_idx = idx;
+    tz.fp_wsm->input.addr = 0;
+    tz.fp_wsm->input.len = 0;
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmEnrollBeginRsp)) {
         ALOGE("send EnrollBegin error");
         set_tz_state(STATE_IDLE);
         send_error_notice(vdev, FINGERPRINT_ERROR_UNABLE_TO_PROCESS);
         return NULL;
     }
-    memset(send_vendor_cmd, 0, QSEECOM_ALIGN(sizeof(*send_vendor_cmd)) + QSEECOM_ALIGN(sizeof(*resp)));
-    send_vendor_cmd->cmd = vfmVendorDefinedOperation;
-    send_vendor_cmd->vendor_cmd = vendorUnknownA;
-    resp->data[0] = 0x4;
-    ret = QSEECom_send_cmd(handle, send_vendor_cmd, QSEECOM_ALIGN(sizeof(*send_vendor_cmd)), resp, QSEECOM_ALIGN(sizeof(*resp)));
-    if (ret || resp->result) {
+    tz.fp_wsm->cmd = vfmVendorDefinedOperation;
+    tz.fp_wsm->vendor_cmd = vendorUnknownA;
+    tz.fp_wsm->input.addr = 0;
+    tz.fp_wsm->input.len = 0;
+    tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+    tz.fp_wsm->output.len = 0x4;
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmVendorDefinedOperationRsp)) {
         ALOGE("send vendorUnknownA error");
         set_tz_state(STATE_IDLE);
         send_error_notice(vdev, FINGERPRINT_ERROR_UNABLE_TO_PROCESS);
@@ -337,59 +332,66 @@ void* vcs_enroll(void* vdev) {
         ret = vcs_start_capture(vdev, 0);
         if (ret == -1)
             goto out;
-        resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(int)));
-        memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(int)) + QSEECOM_ALIGN(sizeof(*resp)));
-        send_cmd->cmd = vfmEnrollAddImage;
-        resp->data[0] = 0x8;
-        ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(int)), resp, QSEECOM_ALIGN(sizeof(*resp)));
-        if (ret) {
+        tz.fp_wsm->cmd = vfmEnrollAddImage;
+        tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+        tz.fp_wsm->output.len = 0x8;
+        mcNotMOD(&tz.ta_session);
+        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        if (tz.fp_wsm->return_cmd != vfmEnrollAddImageRsp) {
             ALOGE("%s:send vfmEnrollAddImage error", __FUNCTION__);
             set_tz_state(STATE_IDLE);
             send_error_notice(vdev, FINGERPRINT_ERROR_UNABLE_TO_PROCESS);
             return NULL;
         }
-        if (resp->result != 0) {
-            send_acquired_notice(vdev, resp->result);
+        if (tz.fp_wsm->return_code != 0) {
+            send_acquired_notice(vdev, tz.fp_wsm->return_code);
             continue;
         }
         count--;
-        if (resp->data[2] == 0x1)
+        if (tz.g_addrs.output_buf[0] == 0x1)
             count = 0;
-        if (resp->data[2] != 0x1 && count == 0)
+        if (tz.g_addrs.output_buf[0] != 0x1 && count == 0)
             count = 1;
         send_enroll_notice(vdev, idx, count);
         if (count == 0)
             break;
     }
-    resp = (trust_zone_normal_result_t *)(handle->ion_sbuffer + QSEECOM_ALIGN(sizeof(trust_zone_base_cmd_t)));
-    memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(*send_cmd)) + QSEECOM_ALIGN(sizeof(*resp)));
-    send_cmd->cmd = vfmEnrollFinish;
-    send_cmd->len = AUTH_SESSION_TOKEN_LENGTH;
-    resp->data[0] = 0x2845;
-    memcpy(&send_cmd->data, &tz.auth_session_token, AUTH_SESSION_TOKEN_LENGTH);
-    ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(*send_cmd)), resp, QSEECOM_ALIGN(sizeof(*resp)));
-    if (ret || resp->result) {
+    tz.fp_wsm->cmd = vfmEnrollFinish;
+    tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
+    tz.fp_wsm->input.len = AUTH_SESSION_TOKEN_LENGTH;
+    tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+    tz.fp_wsm->output.len = FINGER_DATA_MAX_LENGTH;
+    memcpy(tz.g_addrs.input_buf, &tz.auth_session_token, AUTH_SESSION_TOKEN_LENGTH);
+    mcNotMOD(&tz.ta_session);
+    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmVendorDefinedOperationRsp)) {
         ALOGE("Send vfmEnrollFinish error");
     }
-    memcpy(&tz.finger[idx].data, &resp->data[2], FINGER_DATA_MAX_LENGTH);
+    memcpy(&tz.finger[idx].data, tz.g_addrs.output_buf, FINGER_DATA_MAX_LENGTH);
     for (i = 0; i < 2; i++) {
-        memset(send_cmd, 0, QSEECOM_ALIGN(sizeof(*send_cmd)) + QSEECOM_ALIGN(sizeof(*resp)));
-        send_cmd->cmd = vfmPayloadBind;
-        send_cmd->len = 0x1;
-        send_cmd->zero = 0x7;
-        sprintf(&send_cmd->data[4], "User_0");
-        if (i == 1) {
-            resp->data[0] = 0x50;
+        tz.fp_wsm->cmd = vfmPayloadBind;
+        tz.fp_wsm->unknown2 = 0x1;
+        tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
+        tz.fp_wsm->input.len = 0x7;
+        sprintf(tz.g_addrs.input_buf, "User_0");
+        tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
+        if (i == 0) {
+            tz.fp_wsm->output.len = 0x70;
         }
-        ret = QSEECom_send_cmd(handle, send_cmd, QSEECOM_ALIGN(sizeof(*send_cmd)), resp, QSEECOM_ALIGN(sizeof(*resp)));
+        if (i == 1) {
+            tz.fp_wsm->output.len = PAYLOAD_MAX_LENGTH;
+        }
+        mcNotMOD(&tz.ta_session);
+        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
     }
-    if (ret || resp->result) {
+    if ((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmPayloadBindRsp)) {
         ALOGE("Send vfmPayloadBind error");
     }
-    memcpy(&tz.finger[idx].payload, &resp->data[2], PAYLOAD_MAX_LENGTH);
+    memcpy(&tz.finger[idx].payload, tz.g_addrs.output_buf, PAYLOAD_MAX_LENGTH);
     tz.finger[idx].exist = true;
     db_write_to_db(vdev, false, idx);
 
+#if 0
     // We may not need to send vfmEnrollmentPasswordSet.
     for (i = 0; i < 2; i++) {
         trust_zone_3x_cmd_t *send_3x_cmd = NULL;
@@ -409,12 +411,12 @@ void* vcs_enroll(void* vdev) {
     if (ret || resp->result) {
         ALOGE("Send vfmEnrollmentPasswordSet error");
     }
+#endif
 out:
     set_tz_state(STATE_IDLE);
     sensor_uninit();
     vcs_uninit();
     return NULL;
-#endif
 }
 
 void* vcs_timeout(void* vdev) {
@@ -472,9 +474,6 @@ int vcs_start_authenticate(void *vdev) {
 }
 
 int vcs_start_enroll(void *vdev, uint32_t timeout) {
-    //TODO implement
-    return -1;
-#if 0
     if (get_tz_state() != STATE_IDLE) {
         ALOGE("%s:Sensor is busy!", __FUNCTION__);
         return -1;
@@ -501,7 +500,6 @@ int vcs_start_enroll(void *vdev, uint32_t timeout) {
         }
     }
     return ret;
-#endif
 }
 
 int vcs_get_enrolled_finger_num() {

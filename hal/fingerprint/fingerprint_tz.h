@@ -93,7 +93,7 @@ typedef struct {
 typedef struct {
     trust_zone_cmd_id_t cmd;
     uint32_t unk_8000;
-    uint32_t unknown1;
+    uint32_t enroll_fp_idx;
     uint32_t templates_len;
     uint32_t unknown2;
     trust_zone_vendor_cmd_id_t vendor_cmd;
