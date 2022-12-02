@@ -223,7 +223,8 @@ void* vcs_authenticate(void* vdev) {
         tz.fp_wsm->templates_len = vcs_get_enrolled_finger_num();
 
         len = 0;
-        for (int idx = 1; idx <= MAX_NUM_FINGERS; idx++)
+        int idx = 1;
+        for (idx = 1; idx <= MAX_NUM_FINGERS; idx++)
             if (tz.finger[idx].exist) {
                 tz.fp_wsm->cmd_custom[len].len = FINGER_DATA_MAX_LENGTH;
                 tz.fp_wsm->cmd_custom[len].addr = tz.g_ext_addrs.input_addr + (len * FINGER_DATA_MAX_LENGTH);
@@ -247,7 +248,8 @@ void* vcs_authenticate(void* vdev) {
         }
         fake_fid = (int)tz.g_addrs.output_buf[0];
         len = 0;
-        for (int idx = 1; idx <= MAX_NUM_FINGERS; idx++) {
+        idx = 1;
+        for (idx = 1; idx <= MAX_NUM_FINGERS; idx++) {
             if (tz.finger[idx].exist) {
                 len++;
                 if (len == fake_fid) {
@@ -518,7 +520,8 @@ int vcs_get_enrolled_finger_num() {
 int vcs_update_auth_token() {
     //SAMSUNG WEED, I have zero idea how this works
     //DO NOT UNDER ANY CIRCUMSTANCES TRY TO UNDERSTAND THIS OR TOUCH THIS, IT WORKS SO LEAVE IT ALONE
-    for (int i = 0;i < 2; i++) {
+    int i=0;
+    for (i = 0;i < 2; i++) {
         tz.fp_wsm->cmd = vfmVendorDefinedOperation;
         tz.fp_wsm->vendor_cmd = vendorGetAuthToken;
         tz.fp_wsm->output.len = 0x9c;

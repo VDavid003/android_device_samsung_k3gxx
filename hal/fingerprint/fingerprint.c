@@ -346,11 +346,22 @@ void send_enroll_notice(void* device, int fid, int remaining) {
     fingerprint_msg_t msg = {0};
     msg.type = FINGERPRINT_TEMPLATE_ENROLLING;
     msg.data.enroll.finger.fid = fid;
-    msg.data.enroll.samples_remaining = remaining;
+
+    //touchwiz percentage hacc start
+    //NOTE: Samsung framework expects % not remaining number of enrollments unlike AOSP
+    int save_remaining = (8 - remaining) * 13;
+    if(save_remaining > 100) {
+    	save_remaining = 100;
+    }
+   //touchwiz percentage hacc end
+    msg.data.enroll.samples_remaining = save_remaining;
+
+    //USE THIS BELOW ONE FOR AOSP ROMs
+    //AOSP expects number of remaining enroll samples, calculates % of enrollment in framework.
+    //msg.data.enroll.samples_remaining = remaining;   
+     
     vdev->device.notify(&msg);
-
     pthread_mutex_unlock(&vdev->lock);
-
     return;
 }
 
@@ -606,6 +617,26 @@ static int fingerprint_remove(struct fingerprint_device *device,
     return ret;
 }
 
+//Required by TouchWiz/DreamUX/GraceUX etc Samsung firmwares.
+static int fingerprint_request(struct fingerprint_device *device, uint32_t cmd, char *inBuf, uint32_t inBuf_length, char *outBuf, uint32_t outBuf_length, uint32_t param) {
+    ALOGD("fingerprint_request cmd: %d inBuf_len: %02x outBuf_len: %02x, param: %02x", cmd, inBuf_length, outBuf_length, param);
+    switch(cmd) {
+        case FINGERPRINT_REQUEST_GET_SENSOR_STATUS:
+    	    if (get_tz_state() == STATE_IDLE)	{
+    	    	return SEM_SENSOR_STATUS_OK;
+    	    }else{
+      	    	return SEM_SENSOR_STATUS_WORKING;
+    	    }
+	    break;
+	case FINGERPRINT_REQUEST_ENUMERATE:
+	    return fingerprint_enumerate(device, 1, 1);
+	    break;
+//	case FINGERPRINT_REQUEST_REMOVE_FINGER:
+	default:
+            return 0;
+    }
+}
+
 static int set_notify_callback(struct fingerprint_device *device,
                                fingerprint_notify_t notify) {
     ALOGV("----------------> %s ----------------->", __FUNCTION__);
@@ -691,6 +722,7 @@ static int fingerprint_open(const hw_module_t* module, const char __unused *id,
     vdev->device.enumerate = fingerprint_enumerate;
     vdev->device.remove = fingerprint_remove;
     vdev->device.set_notify = set_notify_callback;
+    vdev->device.request = fingerprint_request;
     vdev->device.notify = NULL;
 
     vdev->active_gid = 0;
