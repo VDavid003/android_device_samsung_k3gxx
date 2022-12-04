@@ -245,7 +245,7 @@ void* vcs_authenticate(void* vdev) {
             send_acquired_notice(vdev, tz.fp_wsm->return_code);
             continue;
         }
-        fake_fid = (int)tz.g_addrs.output_buf[0];
+        fake_fid = (int)tz.g_addrs.output_buf[80]+1;
         len = 0;
         for (int idx = 1; idx <= MAX_NUM_FINGERS; idx++) {
             if (tz.finger[idx].exist) {
