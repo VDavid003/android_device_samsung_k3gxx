@@ -346,7 +346,13 @@ void send_enroll_notice(void* device, int fid, int remaining) {
     fingerprint_msg_t msg = {0};
     msg.type = FINGERPRINT_TEMPLATE_ENROLLING;
     msg.data.enroll.finger.fid = fid;
-    msg.data.enroll.samples_remaining = remaining;
+    //touchwiz percentage hacc, framework expects % not remaining number of enrollments
+    int save_remaining = (8 - remaining) * 13;
+    if(save_remaining > 100) {
+    	save_remaining = 100;
+    }
+    msg.data.enroll.samples_remaining = save_remaining;
+    //msg.data.enroll.samples_remaining = remaining;    
     vdev->device.notify(&msg);
 
     pthread_mutex_unlock(&vdev->lock);
@@ -527,6 +533,7 @@ static int fingerprint_cancel(struct fingerprint_device *device) {
         pthread_join(tz.timeout.timeout_thread, NULL);
         tz.timeout.timeout_thread = 0;
     }
+
     if (get_tz_state() != STATE_IDLE && get_tz_state() != STATE_CANCEL) {
         set_tz_state(STATE_CANCEL);
         ioctl(sensor.fd, VFSSPI_IOCTL_SET_DRDY_INT, &flag);
@@ -539,7 +546,6 @@ static int fingerprint_cancel(struct fingerprint_device *device) {
                 break;
         }
     }
-
     return ret;
 }
 
@@ -604,6 +610,34 @@ static int fingerprint_remove(struct fingerprint_device *device,
     }
 
     return ret;
+}
+
+//Required by TouchWiz/DreamUX/GraceUX etc Samsung firmwares.
+static int fingerprint_request(struct fingerprint_device *device, uint32_t cmd, char *inBuf, uint32_t inBuf_length, char *outBuf, uint32_t outBuf_length, uint32_t param) {
+    int num = 0;
+    int idx = 1;
+    ALOGD("fingerprint_request cmd: %d inBuf_len: %02x outBuf_len: %02x, param: %02x", cmd, inBuf_length, outBuf_length, param);
+    switch(cmd) {
+        case FINGERPRINT_REQUEST_GET_SENSOR_STATUS:
+    	    if (get_tz_state() == STATE_IDLE)	{
+    	    	return SEM_SENSOR_STATUS_OK;
+    	    }else{
+      	    	return SEM_SENSOR_STATUS_WORKING;
+    	    }
+	    break;
+	case FINGERPRINT_REQUEST_ENUMERATE:
+            for (idx = 1; (idx <= MAX_NUM_FINGERS) && (idx < outBuf_length); idx++)
+                 if (tz.finger[idx].exist) {
+                      outBuf[num] = idx;
+                      num++;
+                 }
+            ALOGV("%s: num=%d", __FUNCTION__, num);
+            return num;
+	    break;
+//	case FINGERPRINT_REQUEST_REMOVE_FINGER:
+	default:
+            return 0;
+    }
 }
 
 static int set_notify_callback(struct fingerprint_device *device,
@@ -691,6 +725,7 @@ static int fingerprint_open(const hw_module_t* module, const char __unused *id,
     vdev->device.enumerate = fingerprint_enumerate;
     vdev->device.remove = fingerprint_remove;
     vdev->device.set_notify = set_notify_callback;
+    vdev->device.request = fingerprint_request;
     vdev->device.notify = NULL;
 
     vdev->active_gid = 0;

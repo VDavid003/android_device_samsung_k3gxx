@@ -24,6 +24,17 @@
 #define SENSOR_FILE_NAME "/dev/vfsspi"
 #define MAX_DATABASE_CMD 255
 
+//fingerprint requests
+#define FINGERPRINT_REQUEST_GET_SENSOR_STATUS 6
+#define FINGERPRINT_REQUEST_ENUMERATE 11
+#define FINGERPRINT_REQUEST_REMOVE_FINGER 1000
+
+// Fingerprint sensor status codes
+#define SEM_SENSOR_STATUS_CALIBRATION_ERROR 100045
+#define SEM_SENSOR_STATUS_ERROR 100042
+#define SEM_SENSOR_STATUS_OK 100040
+#define SEM_SENSOR_STATUS_WORKING 100041
+
 int sensor_uninit();
 int sensor_init();
 void sensor_process_signal(int signum);

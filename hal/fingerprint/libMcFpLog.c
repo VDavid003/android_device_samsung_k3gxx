@@ -51,7 +51,9 @@ static void hex_dump(uint8_t* buf, uint32_t len) {
 	__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "HEX DUMP:");
 
 	int remaining = len;
-	for (int i = 0; i < (len / 256) + 1; i++) {
+	int i = 0;
+	int j = 0;
+	for (i = 0; i < (len / 256) + 1; i++) {
 		if (remaining == 0)
 			break;
 
@@ -60,7 +62,7 @@ static void hex_dump(uint8_t* buf, uint32_t len) {
 		char onehex[3] = "";
 		str[0] = '\0';
 
-		for(int j=0; j < toPrint; j++) {
+		for(j=0; j < toPrint; j++) {
 			snprintf(onehex, 3, "%02x", buf[(len - remaining) + j]);
 			strcat(str, onehex);
 		}
@@ -112,7 +114,8 @@ static void try_decode_send(tciMessageS5* tci) {
 		case vfmMatchImageToTemplates:
 			__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "MATCH_IMAGE_TO_TEMPLATES (decode wen)");
 			hex_dump((uint8_t*)input_buf + (tci->input.addr - input_addr), tci->input.len);
-			for(int i=0; i < 30; i++) {
+			int i=0;
+			for(i=0; i < 30; i++) {
 				if ((tci->cmd_custom[i].len == 0) || (tci->cmd_custom[i].addr == 0))
 					break;
 				__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "input template %d:", i);
@@ -250,16 +253,16 @@ mcResult_t mcOpenSessMOD(mcSessionHandle_t *session, const mcUuid_t *uuid, uint8
 	char uuidstr[33] = "";
 	char* tcistr;
 	char onehex[3] = "";
-	
-	for(int i=0; i < 16; i++) {
+	int i=0;
+	for(i=0; i < 16; i++) {
 		snprintf(onehex, 3, "%02x", uuid->value[i]);
 		strcat(uuidstr, onehex);
 	}
 
 	tcistr = malloc(tciLen * 2 + 1); //two letters for each byte and zero byte end
 	tcistr[0] = '\0';
-
-	for(int i=0; i < tciLen; i++) {
+	i = 0;
+	for(i=0; i < tciLen; i++) {
 		snprintf(onehex, 3, "%02x", tci[i]);
 		strcat(tcistr, onehex);
 	}
@@ -291,7 +294,8 @@ mcResult_t mcNotMOD(mcSessionHandle_t *session) {
 	__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "mcNotify sessionid: %08x, deviceid: %08x", session->sessionId, session->deviceId);
 	if (session->sessionId == fp_session) {
 		tcistr[0] = '\0';
-		for(int i=0; i < sizeof(tciMessageS5); i++) {
+		int i=0;
+		for(i=0; i < sizeof(tciMessageS5); i++) {
 			snprintf(onehex, 3, "%02x", fp_tci[i]);
 			strcat(tcistr, onehex);
 		}
@@ -312,7 +316,8 @@ mcResult_t mcWaitNotificatMOD(mcSessionHandle_t *session, int32_t timeout) {
 	mcResult_t result = mcWaitNotification(session, timeout);
 	if (session->sessionId == fp_session) {
 		tcistr[0] = '\0';
-		for(int i=0; i < sizeof(tciMessageS5); i++) {
+		int i=0;
+		for(i=0; i < sizeof(tciMessageS5); i++) {
 			snprintf(onehex, 3, "%02x", fp_tci[i]);
 			strcat(tcistr, onehex);
 		}
@@ -333,8 +338,8 @@ mcResult_t mcMallocMOD(uint32_t deviceId, uint32_t align, uint32_t len, uint8_t 
 
 	__android_log_print(ANDROID_LOG_VERBOSE, "FPSHIM", "mcMallocWSM deviceId: %08x, align: %08x, len: %08x, wsmFlags: %08x", deviceId, align, len, wsmFlags);
 	mcResult_t result = mcMallocWsm(deviceId, align, len, wsm, wsmFlags);
-
-	for(int i=0; i < len; i++) {
+	int i=0;
+	for(i=0; i < len; i++) {
 		snprintf(onehex, 3, "%02x", (*wsm)[i]);
 		strcat(wsmstr, onehex);
 	}
