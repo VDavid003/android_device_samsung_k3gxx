@@ -19,16 +19,6 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := libMcFpLog
-LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)
-LOCAL_SRC_FILES := libMcFpLog.c
-LOCAL_SHARED_LIBRARIES := liblog libMcClient
-LOCAL_MODULE_TAGS := optional
-
-include $(BUILD_SHARED_LIBRARY)
-
-include $(CLEAR_VARS)
-
 LOCAL_MODULE := fingerprint.universal5422
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_SRC_FILES := \
@@ -43,9 +33,8 @@ LOCAL_SHARED_LIBRARIES := \
         liblog \
         libsqlite \
         libMcClient \
-        libion \
-        libMcFpLog
-
+        libion
+        
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)

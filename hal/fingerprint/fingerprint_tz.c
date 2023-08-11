@@ -71,8 +71,8 @@ int vcs_update_cal_data() {
     tz.fp_wsm->input.len = 0;
     tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
     tz.fp_wsm->output.len = CALIBRATE_DATA_MAX_LENGTH;
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmVendorDefinedOperationRsp)) {
         ALOGE("Update Cal Data error");
         return -1;
@@ -89,8 +89,8 @@ int vcs_check_state() {
         return 1;
     if (get_tz_state() == STATE_CANCEL) {
         tz.fp_wsm->cmd = vfmCaptureAbort;
-        mcNotMOD(&tz.ta_session);
-        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        mcNotify(&tz.ta_session);
+        mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
         set_tz_state(STATE_IDLE);
         return 1;
     }
@@ -113,8 +113,8 @@ int vcs_start_capture(void *vdev, time_t t) {
     }
     tz.g_addrs.input_buf[24] = 0xc0;
     tz.g_addrs.input_buf[25] = 0x12;
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     if ((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmCaptureStartRsp)) {
         ALOGE("Send vfmCaptureStart error");
         return -1;
@@ -147,8 +147,8 @@ int vcs_start_capture(void *vdev, time_t t) {
         tz.fp_wsm->unk_8000 = 0x8000;
         tz.fp_wsm->output.len = 0xc;
         tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
-        mcNotMOD(&tz.ta_session);
-        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        mcNotify(&tz.ta_session);
+        mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
         if ((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmCaptureReadDataRsp)) {
             ALOGE("Send vfmCaptureReadData error");
             continue;
@@ -169,8 +169,8 @@ int vcs_start_capture(void *vdev, time_t t) {
     tz.g_addrs.input_buf[25] = 0x12;
     tz.fp_wsm->output.len = 0xc;
     tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     if (tz.fp_wsm->return_cmd != vfmCaptureProcessDataRsp) {
         ALOGE("Send vfmCaptureProcessData error");
         return -1;
@@ -202,8 +202,8 @@ void* vcs_authenticate(void* vdev) {
     tz.fp_wsm->input.len = 0;
     tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
     tz.fp_wsm->output.len = 0x4;
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmVendorDefinedOperationRsp)) {
         ALOGE("%s:Send vendor unknown 0 cmd error", __FUNCTION__);
     }
@@ -234,8 +234,8 @@ void* vcs_authenticate(void* vdev) {
         tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
         tz.fp_wsm->ext_output.len = 0x3000;
         tz.fp_wsm->ext_output.addr = tz.g_ext_addrs.output_addr;
-        mcNotMOD(&tz.ta_session);
-        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        mcNotify(&tz.ta_session);
+        mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
         if (tz.fp_wsm->return_cmd != vfmMatchImageToTemplatesRsp) {
             ALOGE("%s:send vfmMatchImageToTemplates error", __FUNCTION__);
             send_error_notice(vdev, FINGERPRINT_ERROR_UNABLE_TO_PROCESS);
@@ -266,8 +266,8 @@ void* vcs_authenticate(void* vdev) {
         memcpy(tz.g_addrs.input_buf, &tz.finger[fingerindex].payload, PAYLOAD_MAX_LENGTH);
         tz.fp_wsm->output.len = 0x24;
         tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
-        mcNotMOD(&tz.ta_session);
-        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        mcNotify(&tz.ta_session);
+        mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
         break;
     }
 out:
@@ -306,8 +306,8 @@ void* vcs_enroll(void* vdev) {
     tz.fp_wsm->enroll_fp_idx = idx;
     tz.fp_wsm->input.addr = 0;
     tz.fp_wsm->input.len = 0;
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmEnrollBeginRsp)) {
         ALOGE("send EnrollBegin error");
         set_tz_state(STATE_IDLE);
@@ -320,8 +320,8 @@ void* vcs_enroll(void* vdev) {
     tz.fp_wsm->input.len = 0;
     tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
     tz.fp_wsm->output.len = 0x4;
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmVendorDefinedOperationRsp)) {
         ALOGE("send vendorUnknownA error");
         set_tz_state(STATE_IDLE);
@@ -335,8 +335,8 @@ void* vcs_enroll(void* vdev) {
         tz.fp_wsm->cmd = vfmEnrollAddImage;
         tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
         tz.fp_wsm->output.len = 0x8;
-        mcNotMOD(&tz.ta_session);
-        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        mcNotify(&tz.ta_session);
+        mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
         if (tz.fp_wsm->return_cmd != vfmEnrollAddImageRsp) {
             ALOGE("%s:send vfmEnrollAddImage error", __FUNCTION__);
             set_tz_state(STATE_IDLE);
@@ -362,8 +362,8 @@ void* vcs_enroll(void* vdev) {
     tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
     tz.fp_wsm->output.len = FINGER_DATA_MAX_LENGTH;
     memcpy(tz.g_addrs.input_buf, &tz.auth_session_token, AUTH_SESSION_TOKEN_LENGTH);
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmVendorDefinedOperationRsp)) {
         ALOGE("Send vfmEnrollFinish error");
     }
@@ -381,8 +381,8 @@ void* vcs_enroll(void* vdev) {
         if (i == 1) {
             tz.fp_wsm->output.len = PAYLOAD_MAX_LENGTH;
         }
-        mcNotMOD(&tz.ta_session);
-        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        mcNotify(&tz.ta_session);
+        mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     }
     if ((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmPayloadBindRsp)) {
         ALOGE("Send vfmPayloadBind error");
@@ -525,8 +525,8 @@ int vcs_update_auth_token() {
         if (i == 0)
           tz.fp_wsm->output.len = 0xa0;
         tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
-        mcNotMOD(&tz.ta_session);
-        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        mcNotify(&tz.ta_session);
+        mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
         if (tz.fp_wsm->output.len == 0x9c) {
             break;
         }
@@ -548,8 +548,8 @@ int vcs_start_auth_session() {
     tz.fp_wsm->cmd = vfmAuthSessionBegin;
     tz.fp_wsm->output.len = 0x20;
     tz.fp_wsm->output.addr = tz.g_addrs.output_addr;
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmAuthSessionBeginRsp)) {
         ALOGE("send vfmAuthSessionBegin failed, TA result=%d", tz.fp_wsm->return_code);
         return -1;
@@ -566,8 +566,8 @@ int vcs_start_auth_session() {
 
 int vcs_stop_auth_session() {
     tz.fp_wsm->cmd = vfmAuthSessionEnd;
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmAuthSessionEndRsp)) {
         ALOGE("send vfmAuthSessionEnd failed, TA result=%d", tz.fp_wsm->return_code);
     }
@@ -590,8 +590,8 @@ int vcs_resume() {
     tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
     memset(tz.g_addrs.input_buf, 0, 4);
     //qcom sets something to 2 here, we don't seem to do it
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmInitializeRsp)) {
         ALOGE("send vfmInitialize failed, TA result=%d", tz.fp_wsm->return_code);
         return -1;
@@ -604,8 +604,8 @@ int vcs_resume() {
         tz.fp_wsm->input.len = 0x9c;
         tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
         memcpy(tz.g_addrs.input_buf, &tz.auth_token, 0x9c);
-        mcNotMOD(&tz.ta_session);
-        mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+        mcNotify(&tz.ta_session);
+        mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
         if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmVendorDefinedOperationRsp)) {
             ALOGE("send EnterAuthSession failed, TA result=%d", tz.fp_wsm->return_code);
             return -1;
@@ -616,8 +616,8 @@ int vcs_resume() {
     tz.fp_wsm->cmd = vfmDeviceInitialize;
     tz.fp_wsm->input.len = 0;
     tz.fp_wsm->input.addr = tz.g_addrs.input_addr;
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmDeviceInitializeRsp)) {
         ALOGE("send vfmDeviceInitialize failed, TA result=%d", tz.fp_wsm->return_code);
         return -1;
@@ -637,8 +637,8 @@ int vcs_resume() {
     } else {
         tz.fp_wsm->input.len = 0x10;
     }
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
     if((tz.fp_wsm->return_code != 0) || (tz.fp_wsm->return_cmd != vfmDeviceCalibrateRsp)) {
         ALOGE("send vfmDeviceCalibrate failed, TA result=%d", tz.fp_wsm->return_code);
         return -1;
@@ -662,34 +662,34 @@ int vcs_uninit() {
     }
 
     tz.fp_wsm->cmd = vfmUninitialize;
-    mcNotMOD(&tz.ta_session);
-    mcWaitNotificatMOD(&tz.ta_session, MC_INFINITE_TIMEOUT);
+    mcNotify(&tz.ta_session);
+    mcWaitNotification(&tz.ta_session, MC_INFINITE_TIMEOUT);
 
-    mcUnMOD(&tz.ta_session, tz.g_addrs.input_buf, &tz.g_addrs.input_map);
+    mcUnmap(&tz.ta_session, tz.g_addrs.input_buf, &tz.g_addrs.input_map);
     tz.g_addrs.input_len = 0;
     tz.g_addrs.input_addr = 0;
     free(tz.g_addrs.input_buf);
 
-    mcUnMOD(&tz.ta_session, tz.g_addrs.output_buf, &tz.g_addrs.output_map);
+    mcUnmap(&tz.ta_session, tz.g_addrs.output_buf, &tz.g_addrs.output_map);
     tz.g_addrs.output_len = 0;
     tz.g_addrs.output_addr = 0;
     free(tz.g_addrs.output_buf);
 
-    mcUnMOD(&tz.ta_session, tz.g_ext_addrs.input_buf, &tz.g_ext_addrs.input_map);
+    mcUnmap(&tz.ta_session, tz.g_ext_addrs.input_buf, &tz.g_ext_addrs.input_map);
     tz.g_ext_addrs.input_len = 0;
     tz.g_ext_addrs.input_addr = 0;
     free(tz.g_ext_addrs.input_buf);
 
-    mcUnMOD(&tz.ta_session, tz.g_ext_addrs.output_buf, &tz.g_ext_addrs.output_map);
+    mcUnmap(&tz.ta_session, tz.g_ext_addrs.output_buf, &tz.g_ext_addrs.output_map);
     tz.g_ext_addrs.output_len = 0;
     tz.g_ext_addrs.output_addr = 0;
     free(tz.g_ext_addrs.output_buf);
 
-    mcCloseSessMOD(&tz.dr_session);
-    mcCloseSessMOD(&tz.ta_session);
-    mcFreeMOD(MC_DEVICE_ID_DEFAULT, tz.drv_wsm);
-    mcFreeMOD(MC_DEVICE_ID_DEFAULT, (uint8_t*)tz.fp_wsm);
-    mcCloseDevMOD(MC_DEVICE_ID_DEFAULT);
+    mcCloseSession(&tz.dr_session);
+    mcCloseSession(&tz.ta_session);
+    mcFreeWsm(MC_DEVICE_ID_DEFAULT, tz.drv_wsm);
+    mcFreeWsm(MC_DEVICE_ID_DEFAULT, (uint8_t*)tz.fp_wsm);
+    mcCloseDevice(MC_DEVICE_ID_DEFAULT);
 
     tz.init = false;
     set_tz_state(STATE_IDLE);
@@ -718,34 +718,34 @@ int vcs_init() {
         return ret;
     }
 
-    if (mcOpenDevMOD(MC_DEVICE_ID_DEFAULT) != MC_DRV_OK) {
+    if (mcOpenDevice(MC_DEVICE_ID_DEFAULT) != MC_DRV_OK) {
         ALOGE("Opening MobiCore device failed");
         return -1;
     }
 
-    if (mcMallocMOD(MC_DEVICE_ID_DEFAULT, 0, 300, &tz.drv_wsm, 0) != MC_DRV_OK) {
+    if (mcMallocWsm(MC_DEVICE_ID_DEFAULT, 0, 300, &tz.drv_wsm, 0) != MC_DRV_OK) {
         ALOGE("Allocating secure driver WSM failed");
         return -1;
     }
 
-    if (mcMallocMOD(MC_DEVICE_ID_DEFAULT, 0, 300, (uint8_t**)&tz.fp_wsm, 0) != MC_DRV_OK) {
+    if (mcMallocWsm(MC_DEVICE_ID_DEFAULT, 0, 300, (uint8_t**)&tz.fp_wsm, 0) != MC_DRV_OK) {
         ALOGE("Allocating TA WSM failed");
         return -1;
     }
 
-    if (mcOpenSessMOD(&tz.dr_session, &dr_uuid, tz.drv_wsm, 300) != MC_DRV_OK) {
+    if (mcOpenSession(&tz.dr_session, &dr_uuid, tz.drv_wsm, 300) != MC_DRV_OK) {
         ALOGE("Loading secure driver failed");
         return -1;
     }
 
-    if (mcOpenSessMOD(&tz.ta_session, &ta_uuid, (uint8_t*)tz.fp_wsm, 300) != MC_DRV_OK) {
+    if (mcOpenSession(&tz.ta_session, &ta_uuid, (uint8_t*)tz.fp_wsm, 300) != MC_DRV_OK) {
         ALOGE("Loading securefp app failed");
         return -1;
     }
 
     tz.g_addrs.input_len = 0x25800;
     tz.g_addrs.input_buf = malloc(0x25800);
-    if (mcMOD(&tz.ta_session, tz.g_addrs.input_buf, tz.g_addrs.input_len, &tz.g_addrs.input_map) != MC_DRV_OK) {
+    if (mcMap(&tz.ta_session, tz.g_addrs.input_buf, tz.g_addrs.input_len, &tz.g_addrs.input_map) != MC_DRV_OK) {
         ALOGE("Mapping input buffer failed");
         return -1;
     }
@@ -753,7 +753,7 @@ int vcs_init() {
 
     tz.g_addrs.output_len = 0x25800;
     tz.g_addrs.output_buf = malloc(0x25800);
-    if (mcMOD(&tz.ta_session, tz.g_addrs.output_buf, tz.g_addrs.output_len, &tz.g_addrs.output_map) != MC_DRV_OK) {
+    if (mcMap(&tz.ta_session, tz.g_addrs.output_buf, tz.g_addrs.output_len, &tz.g_addrs.output_map) != MC_DRV_OK) {
         ALOGE("Mapping output buffer failed");
         return -1;
     }
@@ -761,7 +761,7 @@ int vcs_init() {
 
     tz.g_ext_addrs.input_len = 0x96000;
     tz.g_ext_addrs.input_buf = malloc(0x96000);
-    if (mcMOD(&tz.ta_session, tz.g_ext_addrs.input_buf, tz.g_ext_addrs.input_len, &tz.g_ext_addrs.input_map) != MC_DRV_OK) {
+    if (mcMap(&tz.ta_session, tz.g_ext_addrs.input_buf, tz.g_ext_addrs.input_len, &tz.g_ext_addrs.input_map) != MC_DRV_OK) {
         ALOGE("Mapping special input buffer failed");
         return -1;
     }
@@ -769,7 +769,7 @@ int vcs_init() {
 
     tz.g_ext_addrs.output_len = 0x25800;
     tz.g_ext_addrs.output_buf = malloc(0x25800);
-    if (mcMOD(&tz.ta_session, tz.g_ext_addrs.output_buf, tz.g_ext_addrs.output_len, &tz.g_ext_addrs.output_map) != MC_DRV_OK) {
+    if (mcMap(&tz.ta_session, tz.g_ext_addrs.output_buf, tz.g_ext_addrs.output_len, &tz.g_ext_addrs.output_map) != MC_DRV_OK) {
         ALOGE("Mapping special output buffer failed");
         return -1;
     }

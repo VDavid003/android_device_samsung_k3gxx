@@ -20,7 +20,6 @@
 
 #include "fingerprint_common.h"
 #include "MobiCoreDriverApi.h"
-#include "libMcFpLog.h"
 
 /* CMD */
 typedef enum trust_zone_cmd_id_t {
